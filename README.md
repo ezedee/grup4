@@ -1,1 +1,5 @@
 # grup4
+baha-taradeh
+What is Lexical Analyzer?
+
+We’ll make a Lexical Analyzer in C, or a C program that detects tokens in a C program. Lexical Analysis sometimes referred to as a scanner, is the initial phase of the compile. It delivers the input program to the syntax analyzer after converting it into a series of Tokens. The simplest unit of code is the token, which can be a Keyword, Identifier, Constant, String Literal, or Symbol.
