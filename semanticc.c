@@ -27,6 +27,24 @@ void check_variable_declaration(ASTNode *node)
         report_error("Invalid type for assignment to variable '" + node->identifier + "'");
     }
 }
+void report_error(std::string error_message) {
+  // Output the error message to the user
+  std::cout << "Semantic error: " << error_message << std::endl;
+
+  // Increment the error count
+  error_count++;
+}
+bool is_assignment_type_valid(ASTNode *node) {
+  // Get the declared type of the variable being assigned to
+  DataType declared_type = get_variable_declared_type(node->identifier);
+
+  // Check that the type of the assignment expression matches the declared type
+  return node->assignment_expression_type == declared_type;
+}
+void  get_variable_declared_type(std::string identifier) {
+  // Look up the variable's declared type in the symbol table
+  return symbol_table[identifier].declared_type;
+}
 
 void check_assignment(ASTNode *node)
 {
@@ -42,7 +60,10 @@ void check_assignment(ASTNode *node)
         report_error("Incompatible type for assignment to variable '" + node->identifier + "'");
     }
 }
-
+bool is_variable_declared(std::string identifier) {
+  // Check if the variable is in the symbol table
+  return symbol_table.count(identifier) > 0;
+}
 void check_function_declaration(ASTNode *node)
 {
     // Check that the function name is not already in use
@@ -66,6 +87,62 @@ void check_function_declaration(ASTNode *node)
     // Check that the function body is well-formed
     check_function_body(node->function_body);
 }
+bool are_parameter_names_unique(std::vector<ASTNode*> parameters) {
+  // Create a set to store the parameter names
+  std::unordered_set<std::string> parameter_names;
+
+  // Iterate through the parameters and check that their names are unique
+  for (ASTNode *parameter : parameters) {
+    // Check if the parameter name is already in the set
+    if (parameter_names.count(parameter->identifier) > 0) {
+      // Return false if the parameter name is not unique
+      return false;
+    }
+    // Add the parameter name to the set
+    parameter_names.insert(parameter->identifier);
+  }
+
+  // Return true if all parameter names are unique
+  return true;
+}
+void check_function_body(ASTNode *function_body_node) {
+  // Check that the function body is a block node
+  if (function_body_node->node_type != BLOCK) {
+    report_error("Function body must be a block of statements");
+  }
+
+  // Check that all statements in the function body are well-formed
+  for (ASTNode *statement : function_body_node->statements) {
+    check_statement(statement);
+  }
+}
+
+void check_statement(ASTNode *statement) {
+  // Switch on the statement type and check for well-formedness as appropriate
+  switch (statement->node_type) {
+    case VARIABLE_DECLARATION:
+      check_variable_declaration(statement);
+      break;
+    case ASSIGNMENT:
+      check_assignment(statement);
+      break;
+    case FUNCTION_CALL:
+      check_function_call(statement);
+      break;
+    case CONTROL_FLOW:
+      check_control_flow(statement);
+      break;
+    case RETURN:
+      check_return(statement);
+      break;
+    // Add additional cases as needed
+  }
+}
+
+bool is_function_declared(std::string identifier) {
+  // Check if the function is in the function table
+  return function_table.count(identifier) > 0;
+}
 
 void check_function_call(ASTNode *node)
 {
@@ -75,11 +152,7 @@ void check_function_call(ASTNode *node)
         report_error("Function '" + node->identifier + "' has not been declared");
     }
 
-    // Check that the correct number of arguments are being passed to the function
-    if (!are_argument_counts_matching(node))
-    {
-        report_error("Incorrect number of arguments passed to function '" + node->identifier + "'");
-    }
+    
 
     // Check that the argument types are compatible with the function's parameter types
     if (!are_argument_types_compatible(node))
@@ -87,6 +160,46 @@ void check_function_call(ASTNode *node)
         report_error("Incompatible argument types passed to function '" + node->identifier + "'");
     }
 }
+bool are_argument_types_compatible(ASTNode *function_call_node) {
+  // Get the function declaration node
+  ASTNode *function_declaration_node = get_function_declaration_node(function_call_node->identifier);
+
+  // Check that the number of arguments matches the number of parameters
+  if (function_call_node->arguments.size() != function_declaration_node->parameters.size()) {
+    return false;
+  }
+
+  // Iterate through the arguments and check that their types are compatible with the corresponding parameter types
+  for (int i = 0; i < function_call_node->arguments.size(); i++) {
+    // Check that the argument type is compatible with the parameter type
+    if (!is_type_compatible(function_call_node->arguments[i]->expression_type, function_declaration_node->parameters[i]->declared_type)) {
+      return false;
+    }
+  }
+
+  // Return true if all argument types are compatible with the corresponding parameter types
+  return true;
+}
+bool is_type_compatible(DataType type1, DataType type2) {
+  // Check if the types are equal
+  if (type1 == type2) {
+    return true;
+  }
+
+  // Check if one of the types is a numeric type and the other is a numeric type
+  if (is_numeric_type(type1) && is_numeric_type(type2)) {
+    return true;
+  }
+
+  // Check if one of the types is a string type and the other is a string type
+  if (type1 == STRING && type2 == STRING) {
+    return true;
+  }
+
+  // Return false if the types are not compatible
+  return false;
+}
+
 void check_control_flow(ASTNode *node)
 {
     // Check that the condition for the control flow statement is a boolean expression
@@ -97,6 +210,10 @@ void check_control_flow(ASTNode *node)
 
     // Check that the body of the control flow statement is well-formed
     check_control_flow_body(node->control_flow_body);
+}
+bool is_boolean_expression(ASTNode *expression_node) {
+  // Check if the expression type is a boolean type
+  return expression_node->expression_type == BOOLEAN;
 }
 
 void check_return(ASTNode *node)
@@ -156,6 +273,9 @@ void check_struct_declaration(ASTNode *node)
         report_error("Struct '" + node->identifier + "' has duplicate field names");
     }
 }
+
+
+
 void check_semantic_errors(ASTNode *node)
 {
     switch (node->node_type)
@@ -193,14 +313,5 @@ void check_semantic_errors(ASTNode *node)
     }
 }
 
-// This code is a function that performs semantic analysis on a parse tree. The function recursively processes each node in the parse tree, performing the following steps:
-
-// Check the type of the current parse tree node and process it accordingly. For example, if the node is a variable declaration, it checks if the variable has already been declared and adds it to the symbol table if it has not. If the node is an assignment, it checks if the variable being assigned to has been declared.
-
-// Recursively process the children of the current node.
-
-// Create an abstract syntax tree (AST) node for the current parse tree node. The AST node is created by calling the create_ast_node function, which returns a new AST node with the given type. The data of the AST node is then populated by copying the data from the parse tree node. The children of the AST node are set to be the corresponding AST nodes of the parse tree node's children.
-
-// Set the AST node for the parse tree node by assigning it to the ast_node field of the parse tree node.
-
-// The function returns nothing, as the AST is constructed in place. If an error is encountered during semantic analysis, the function prints an error message and exits the program.
+.
+    \\\edited
